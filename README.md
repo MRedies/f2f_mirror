@@ -27,3 +27,6 @@ f2f does not handle Windows line endings well (Carriage return/Line Feed). Perha
 [to_f90.f90](http://users.bigpond.net.au/amiller/to_f90.f90), written by Alan Miller.
 
 [ftof90.c](ftp://ftp.ifremer.fr/ifremer/ditigo/fortran90/ftof90.c.gz), for converting comments and continuation lines, written by Michael Olagnon.
+
+
+Originally from: http://lemonlab.net/fortran/, but since the old BitBucket repo disappeard, I created a mirror with an old version I could find. Newer versions are welcome.
