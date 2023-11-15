@@ -71,7 +71,7 @@ use IO::File;
 use Pod::Usage;
 
 our $CODENAME = q{f2f};
-our $VERSION  = q{0.95};
+our $VERSION  = q{0.96};
 
 # TODO Set these options as defaults to be overridden by command line options
 # TODO Read options from command line
@@ -85,6 +85,8 @@ our $VERSION  = q{0.95};
 #     Note that although DOUBLE PRECISION is deprecated, REAL*8 is not
 # even standard. REAL*8 is a Digital (VAX) Fortran extension.
 #
+my $debug = 0;  # set this to 1 to output each line before/after conversion to STDERR
+
 my $rh_default = {
 
     # Convert DOUBLE PRECISION to REAL*<dp-to-star-kind>
@@ -294,6 +296,7 @@ libloop:
         # if character in column 6...
         if ($card =~ s/^ {5}[^0 \t]//o) {
 
+            $card =~ s/^([ \t]*[0-9]+)/& $1/;  # If a number is the first thing on the continued line, it may cause trouble later
             # find last statement
 
             # (skip blank lines and comments)
@@ -304,12 +307,13 @@ libloop:
 
             $rl_src->[ $lineno - $j ] =
                 add_continuation_marker($rl_src->[ $lineno - $j ]);
+
         }
 
         # Get rid of fixed source formatting spaces
 
         # throw out leading spaces
-        $card =~ s/^\s+//;
+        $card =~ s/^[ \t]+//;
 
         # compress spaces after numeric labels
         $card =~ s/^([0-9]+)\s{2,}(.+)/$1 $2/;
@@ -335,7 +339,6 @@ sub convert {
 
     my $subname;
     my $cn;
-    my $linect = 0;
 
     # initialize array to store loop labels
     my @label = (0);
@@ -347,9 +350,7 @@ sub convert {
 
 cloop:
     for (my $lineno = 0; $_ = $_[$lineno]; $_[ $lineno++ ] = $_) {
-
-        #        print STDERR q{convert: Line } . $linect . qq{ =? $lineno\n};
-        $linect++;
+        if ($debug) { print STDERR "\n" . $lineno . " " . $_; }
 
         # skip blank lines and comments
         next cloop if /^(\n|!)/;
@@ -364,24 +365,19 @@ cloop:
             }
 
             # replace .eq. , .gt. , etc. with ==, >, etc., and add spaces
-            if (/^[0-9]*\s*if/i || /^else\s?if/i || $cn) {
-                s/ ?\.\s*lt\s*\. ?/ < /ig;
-                s/ ?\.\s*eq\s*\. ?/ == /ig;
-                s/ ?\.\s*gt\s*\. ?/ > /ig;
-                s/ ?\.\s*le\s*\. ?/ <= /ig;
-                s/ ?\.\s*ne\s*\. ?/ \/= /ig;
-                s/ ?\.\s*ge\s*\. ?/ >= /ig;
+            s/ ?\.\s*lt\s*\. ?/ < /ig;
+            s/ ?\.\s*eq\s*\. ?/ == /ig;
+            s/ ?\.\s*gt\s*\. ?/ > /ig;
+            s/ ?\.\s*le\s*\. ?/ <= /ig;
+            s/ ?\.\s*ne\s*\. ?/ \/= /ig;
+            s/ ?\.\s*ge\s*\. ?/ >= /ig;
 
-                # add spaces and capitalize logical operators
-                s/ ?\.\s*and\s*\. ?/ .AND. /ig;
-                s/ ?\.\s*or\s*\. ?/ .OR. /ig;
-                s/ ?\.\s*not\s*\. ?/ .NOT. /ig;
-                s/ ?\.\s*true\s*\. ?/ .TRUE. /ig;
-                s/ ?\.\s*false\s*\. ?/ .FALSE. /ig;
-                $cn = /&$/;
-
-                last cblock;
-            }
+            # add spaces and capitalize logical operators
+            s/ ?\.\s*and\s*\. ?/ .AND. /ig;
+            s/ ?\.\s*or\s*\. ?/ .OR. /ig;
+            s/ ?\.\s*not\s*\. ?/ .NOT. /ig;
+            s/ ?\.\s*true\s*\. ?/ .TRUE. /ig;
+            s/ ?\.\s*false\s*\. ?/ .FALSE. /ig;
 
             # add program unit names to end statements
             # this includes subroutine, function, module, and block data
@@ -503,6 +499,7 @@ cloop:
         if (/^[0-9]*[ \t]*do[ \t]+([0-9]+)/i) {    # do loop
             push @label, $1;                       # save the label
 
+
         } elsif (/^([0-9]+)[ \t]/i && ($1 eq $label[-1])) {    # end of loop
             my $label = $1;    # save label number
             unless (s/continue$/END DO/i) {    # if not a continue statement,
@@ -521,10 +518,7 @@ cloop:
             }
             do {
                 pop @label;    # remove labels from @label
-                } while ($label[-1] == $label)
-
-                #              } while ( $label[$#label] == $label )
-                ;              # that belong to this do loop
+                } while (@label && $label[-1] == $label);  # that belong to this do loop
 
             # replace some 'go to' statements with 'cycle'
             push @_, $lineno;    # store line number
@@ -546,6 +540,8 @@ cloop:
             # restore line number
             $lineno = pop @_;
         }
+        if ($debug) { print STDERR $lineno . " " . $_; }
+
     }    # end of for loop
 
     # TODO Refactor away implied variable
@@ -858,7 +854,7 @@ sub add_continuation_marker {
     if ($eol) {
         $line .= q{ &};
     } else {
-        $line = substr($line, 0, $i) . q{ & } . substr($line, $i) 
+        $line = substr($line, 0, $i-1) . q{ & } . substr($line, $i-1) 
     }
     $line .= qq{\n};
     
@@ -866,6 +862,8 @@ sub add_continuation_marker {
     
     return $line;
 }
+
+   
 
 __END__
 # Add pod here
